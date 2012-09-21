@@ -527,6 +527,12 @@ import datetime
 from decimal import Decimal
 from django.contrib.contenttypes.models import ContentType
 
+# For Django 1.4 time zone awareness
+try: 
+    from django.utils import timezone
+except ImportError:
+    pass
+
 def run():
 
 """ % " ".join(sys.argv)
@@ -636,6 +642,22 @@ def get_attribute_value(item, field, context, force=False):
             return item_locator
         else:
             raise DoLater('(FK) %s.%s\n' % (item.__class__.__name__, field.name))
+
+    # DateTimeFields return datetime objects with tzinfo set. repr() on 
+    # tzinfo returns string that cannot be executed as python object, 
+    # hence here we set to None. When instantiating using Django, 
+    # will populate with project's timezone.
+    elif isinstance(field, models.DateTimeField):
+        # check if Django 1.4
+        try:
+            from django.utils import timezone
+        except ImportError:
+            value.replace(tzinfo=None)
+        else:
+            value_repr = repr(value)
+            import re
+            value_repr = re.sub(r'tzinfo=<.+>', 'tzinfo=timezone.get_current_timezone()', value_repr)
+            return value_repr
 
     # A normal field (e.g. a python built-in)
     else:
